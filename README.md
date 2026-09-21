@@ -367,19 +367,20 @@ Q = X_{\text{dec}}W^{Q}, \qquad K = X_{\text{enc}}W^{K}, \qquad V = X_{\text{enc
 
 ### 9. Output Projection
 
-The final decoder representation $H$ is projected to vocabulary size:
+The final decoder representation $H$ is projected to the vocabulary size:
 
-```math
-L = HW_{\text{proj}} + b_{\text{proj}}, \qquad L \in \mathbb{R}^{n \times |\mathcal{V}|}
-```
+$$
+L = H W_{\mathrm{proj}} + b_{\mathrm{proj}}, \qquad L \in \mathbb{R}^{n \times \lvert \mathcal{V} \rvert}
+$$
 
-where $|\mathcal{V}|$ is the vocabulary size. Applying log-softmax gives token log-probabilities:
+where $\lvert \mathcal{V} \rvert$ is the vocabulary size. Applying log-softmax gives the token log-probabilities:
 
-```math
-\log P(y_t \mid y_{<t}, x) = \mathrm{LogSoftmax}(L_t)
-```
+$$
+\log P\left(y_t \mid y_{\lt t},\, x\right) = \mathrm{LogSoftmax}\left(L_t\right)
+$$
 
 **Purpose:** Produces vocabulary-level scores for predicting the next target token.
+
 
 ---
 
@@ -441,7 +442,7 @@ The notebooks should be run in an environment where the required dependencies ar
 ### 1. Clone the Repository
 
 ```bash
-git clone https://github.com/<your-username>/TransForge.git
+git clone https://github.com/Rishikesh1411/TransForge.git
 cd TransForge
 ```
 
