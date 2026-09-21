@@ -173,260 +173,153 @@ The supplied projection implementation uses a linear layer followed by log-softm
 
 ## Mathematical Foundations
 
-This section explains the mathematical operations behind the Transformer architecture implemented in TransForge.
+This section explains the mathematical operations behind the Transformer architecture implemented in **TransForge**.
+
+---
 
 ### 1. Input Embeddings
 
-Input tokens are converted into dense vector representations using an embedding layer.
+Input tokens are converted into dense vectors. Given a sequence of token IDs:
 
-Given a sequence of token IDs:
-
-\[
+```math
 X = [x_1, x_2, \ldots, x_n]
-\]
+```
 
-The embedding layer maps each token to a vector of dimension \(d_{\text{model}}\):
+The embedding layer maps each token to a vector of dimension $d_{\text{model}}$:
 
-\[
-E = \operatorname{Embedding}(X)
-\]
+```math
+E = \mathrm{Embedding}(X), \qquad E \in \mathbb{R}^{n \times d_{\text{model}}}
+```
 
-The resulting embedding matrix has the shape:
+To maintain an appropriate scale, embeddings are multiplied by $\sqrt{d_{\text{model}}}$:
 
-\[
-E \in \mathbb{R}^{n \times d_{\text{model}}}
-\]
-
-To maintain an appropriate scale, the embeddings are multiplied by the square root of the model dimension:
-
-\[
+```math
 E_{\text{scaled}} = E \cdot \sqrt{d_{\text{model}}}
-\]
+```
 
-**Purpose:** Converts discrete token IDs into continuous vector representations that can be processed by the Transformer.
+**Purpose:** Converts discrete token IDs into continuous vectors the Transformer can process.
 
 ---
 
 ### 2. Positional Encoding
 
-Unlike recurrent networks, the self-attention mechanism does not inherently encode the order of tokens. Positional encoding adds information about the position of each token in the sequence.
+Self-attention does not encode token order by itself, so sinusoidal positional encodings are added.
 
-The sinusoidal positional encoding is defined as follows.
+```math
+PE_{(pos,\,2i)} = \sin\!\left(\frac{pos}{10000^{2i / d_{\text{model}}}}\right)
+```
 
-#### Even Dimensions
-
-For even embedding dimensions:
-
-\[
-PE_{(pos,\,2i)}
-=
-\sin\left(
-\frac{pos}{10000^{\frac{2i}{d_{\text{model}}}}}
-\right)
-\]
-
-#### Odd Dimensions
-
-For odd embedding dimensions:
-
-\[
-PE_{(pos,\,2i+1)}
-=
-\cos\left(
-\frac{pos}{10000^{\frac{2i}{d_{\text{model}}}}}
-\right)
-\]
+```math
+PE_{(pos,\,2i+1)} = \cos\!\left(\frac{pos}{10000^{2i / d_{\text{model}}}}\right)
+```
 
 Where:
 
-- \(pos\): Position of the token in the sequence.
-- \(i\): Dimension index.
-- \(d_{\text{model}}\): Embedding dimension.
+- $pos$: position of the token in the sequence
+- $i$: dimension index
+- $d_{\text{model}}$: embedding dimension
 
-The positional encoding is added to the token embeddings:
+The encoding is added to the scaled embeddings:
 
-\[
+```math
 Z = E_{\text{scaled}} + PE
-\]
+```
 
-**Purpose:** Provides positional information so that the model can distinguish between tokens at different positions.
+**Purpose:** Lets the model distinguish tokens at different positions.
 
 ---
 
 ### 3. Scaled Dot-Product Attention
 
-Scaled dot-product attention is the fundamental operation used by the Transformer to model relationships between tokens.
-
 The attention mechanism takes three inputs:
 
-- **Query (Q):** Represents the information being searched for.
-- **Key (K):** Represents the information used for matching.
-- **Value (V):** Represents the information that is aggregated.
+- **Query ($Q$):** what is being searched for
+- **Key ($K$):** what is used for matching
+- **Value ($V$):** what is aggregated
 
-The attention operation is defined as:
+```math
+\mathrm{Attention}(Q, K, V) = \mathrm{softmax}\!\left(\frac{QK^{\top}}{\sqrt{d_k}}\right)V
+```
 
-\[
-\operatorname{Attention}(Q,K,V)
-=
-\operatorname{softmax}
-\left(
-\frac{QK^\top}{\sqrt{d_k}}
-\right)V
-\]
+**Step-by-step:**
 
-#### Step-by-Step Computation
+| Step | Operation | Formula |
+|:---:|:---|:---|
+| 1 | Attention scores | $S = QK^{\top}$ |
+| 2 | Scale | $S_{\text{scaled}} = \dfrac{S}{\sqrt{d_k}}$ |
+| 3 | Softmax | $A = \mathrm{softmax}(S_{\text{scaled}})$ |
+| 4 | Weighted values | $O = AV$ |
 
-**Step 1: Calculate the attention scores**
+Where $d_k$ is the key dimension, $A$ is the attention weight matrix, and $O$ is the output.
 
-\[
-S = QK^\top
-\]
-
-**Step 2: Scale the scores**
-
-\[
-S_{\text{scaled}}
-=
-\frac{QK^\top}{\sqrt{d_k}}
-\]
-
-**Step 3: Apply softmax**
-
-\[
-A =
-\operatorname{softmax}
-\left(
-\frac{QK^\top}{\sqrt{d_k}}
-\right)
-\]
-
-**Step 4: Compute the weighted values**
-
-\[
-O = AV
-\]
-
-Where:
-
-- \(Q\): Query matrix.
-- \(K\): Key matrix.
-- \(V\): Value matrix.
-- \(d_k\): Key dimension.
-- \(A\): Attention weight matrix.
-- \(O\): Attention output.
-
-**Purpose:** Allows each token to incorporate information from other relevant tokens in the sequence.
+**Purpose:** Lets each token gather information from other relevant tokens.
 
 ---
 
 ### 4. Attention Masking
 
-Attention masks control which tokens are accessible during attention computation.
+Before the softmax, disallowed positions are set to $-\infty$:
 
-Before applying softmax, masked positions are assigned a large negative value (conceptually \(-\infty\)):
-
-\[
-S_{ij}^{\text{masked}}
-=
+```math
+S^{\text{masked}}_{ij} =
 \begin{cases}
 S_{ij}, & \text{if position } j \text{ is allowed} \\
 -\infty, & \text{if position } j \text{ is masked}
 \end{cases}
-\]
+```
 
-The resulting attention probabilities are:
-
-\[
-A =
-\operatorname{softmax}
-\left(
-S^{\text{masked}}
-\right)
-\]
+```math
+A = \mathrm{softmax}\left(S^{\text{masked}}\right)
+```
 
 **Purpose:**
 
-- Padding masks prevent attention to padding tokens.
-- Causal masks prevent a decoder from attending to future target tokens.
+- **Padding masks** prevent attention to padding tokens.
+- **Causal masks** prevent the decoder from attending to future target tokens.
 
 ---
 
 ### 5. Multi-Head Attention
 
-Multi-head attention allows the Transformer to learn different relationships between tokens through multiple attention heads.
+With $h$ heads, each head has dimension:
 
-Given the model dimension \(d_{\text{model}}\) and the number of attention heads \(h\), the dimension of each head is:
-
-\[
+```math
 d_k = \frac{d_{\text{model}}}{h}
-\]
+```
 
-The queries, keys, and values are projected separately for each head:
+Per-head projections:
 
-\[
-Q_i = XW_i^Q
-\]
+```math
+Q_i = XW_i^{Q}, \qquad K_i = XW_i^{K}, \qquad V_i = XW_i^{V}
+```
 
-\[
-K_i = XW_i^K
-\]
+Per-head attention:
 
-\[
-V_i = XW_i^V
-\]
+```math
+\mathrm{head}_i = \mathrm{Attention}(Q_i, K_i, V_i)
+```
 
-The attention output for each head is:
+Concatenation and output projection:
 
-\[
-\operatorname{head}_i
-=
-\operatorname{Attention}(Q_i,K_i,V_i)
-\]
+```math
+\mathrm{MultiHead}(Q, K, V) = \mathrm{Concat}(\mathrm{head}_1, \ldots, \mathrm{head}_h)\,W^{O}
+```
 
-The outputs of all heads are concatenated:
+Where $W_i^{Q}, W_i^{K}, W_i^{V}$ are the projection matrices for head $i$ and $W^{O}$ is the output projection.
 
-\[
-H =
-\operatorname{Concat}
-\left(
-\operatorname{head}_1,
-\operatorname{head}_2,
-\ldots,
-\operatorname{head}_h
-\right)
-\]
-
-Finally, the concatenated output is projected:
-
-\[
-\operatorname{MultiHead}(Q,K,V)
-=
-HW^O
-\]
-
-Where:
-
-- \(h\): Number of attention heads.
-- \(W_i^Q, W_i^K, W_i^V\): Projection matrices for head \(i\).
-- \(W^O\): Output projection matrix.
-
-**Purpose:** Enables the model to attend to different representation subspaces and relationships simultaneously.
+**Purpose:** Lets the model attend to different representation subspaces at once.
 
 ---
 
 ### 6. Feed-Forward Network
 
-Each Transformer encoder and decoder block contains a position-wise feed-forward network.
+Each encoder and decoder block has a position-wise feed-forward network:
 
-The network consists of two linear transformations with a ReLU activation:
+```math
+\mathrm{FFN}(x) = W_2\,\mathrm{ReLU}(W_1 x + b_1) + b_2
+```
 
-\[
-FFN(x)
-=
-W_2\operatorname{ReLU}(W_1x+b_1)+b_2
-\]
-
-The implementation applies dropout between the two linear layers.
+Dropout is applied between the two linear layers.
 
 **Purpose:** Applies a nonlinear transformation to each token representation independently.
 
@@ -434,120 +327,77 @@ The implementation applies dropout between the two linear layers.
 
 ### 7. Residual Connections and Layer Normalization
 
-Residual connections help preserve information from earlier layers and support the training of deep neural networks.
+A residual connection:
 
-A residual connection can be represented as:
+```math
+y = x + \mathrm{Sublayer}(x)
+```
 
-\[
-y = x + \operatorname{Sublayer}(x)
-\]
+With post-normalization, as used in the original Transformer:
 
-With dropout and normalization, the exact computation depends on the architecture's normalization arrangement.
-
-For a post-normalization arrangement:
-
-\[
-y =
-\operatorname{LayerNorm}
-\left(
-x + \operatorname{Dropout}(\operatorname{Sublayer}(x))
-\right)
-\]
+```math
+y = \mathrm{LayerNorm}\big(x + \mathrm{Dropout}(\mathrm{Sublayer}(x))\big)
+```
 
 Layer normalization is applied over the feature dimension.
 
 **Purpose:**
 
-- Residual connections facilitate information flow.
+- Residual connections improve information and gradient flow.
 - Layer normalization stabilizes hidden representations.
-- Dropout helps reduce overfitting during training.
+- Dropout reduces overfitting.
 
 ---
 
 ### 8. Encoder–Decoder Cross-Attention
 
-In the decoder, cross-attention connects the decoder representation to the encoder output.
+The decoder produces queries, while the encoder output supplies keys and values:
 
-The decoder generates queries, while the encoder output supplies keys and values:
+```math
+Q = X_{\text{dec}}W^{Q}, \qquad K = X_{\text{enc}}W^{K}, \qquad V = X_{\text{enc}}W^{V}
+```
 
-\[
-Q = X_{\text{decoder}}W^Q
-\]
+```math
+\mathrm{CrossAttention} = \mathrm{Attention}(Q, K, V)
+```
 
-\[
-K = X_{\text{encoder}}W^K
-\]
-
-\[
-V = X_{\text{encoder}}W^V
-\]
-
-The cross-attention operation is:
-
-\[
-\operatorname{CrossAttention}
-=
-\operatorname{Attention}
-\left(
-Q_{\text{decoder}},
-K_{\text{encoder}},
-V_{\text{encoder}}
-\right)
-\]
-
-**Purpose:** Allows the decoder to use information from the encoded source sequence while processing target tokens.
+**Purpose:** Lets the decoder use the encoded source sequence while processing target tokens.
 
 ---
 
 ### 9. Output Projection
 
-The final decoder representation is mapped to the target vocabulary dimension using a linear projection.
+The final decoder representation $H$ is projected to vocabulary size:
 
-Given a decoder output \(H\):
+```math
+L = HW_{\text{proj}} + b_{\text{proj}}, \qquad L \in \mathbb{R}^{n \times |\mathcal{V}|}
+```
 
-\[
-Z = HW_{\text{proj}} + b_{\text{proj}}
-\]
+where $|\mathcal{V}|$ is the vocabulary size. Applying log-softmax gives token log-probabilities:
 
-Where:
+```math
+\log P(y_t \mid y_{<t}, x) = \mathrm{LogSoftmax}(L_t)
+```
 
-- \(H\): Decoder hidden representation.
-- \(W_{\text{proj}}\): Output projection matrix.
-- \(b_{\text{proj}}\): Projection bias.
-
-For a vocabulary of size \(V\):
-
-\[
-Z \in \mathbb{R}^{n \times V}
-\]
-
-When log-softmax is applied:
-
-\[
-\log P(y_t \mid y_{<t},x)
-=
-\operatorname{LogSoftmax}(Z_t)
-\]
-
-**Purpose:** Produces vocabulary-level scores for predicting target tokens.
+**Purpose:** Produces vocabulary-level scores for predicting the next target token.
 
 ---
 
 ### Summary
 
-The Transformer architecture combines:
+| # | Component | Role |
+|:-:|:---|:---|
+| 1 | Input embeddings | Tokens → dense vectors |
+| 2 | Positional encoding | Injects order information |
+| 3 | Scaled dot-product attention | Token-to-token interaction |
+| 4 | Attention masking | Padding and causal control |
+| 5 | Multi-head attention | Parallel attention subspaces |
+| 6 | Feed-forward network | Per-token nonlinearity |
+| 7 | Residual + LayerNorm | Stable, deep training |
+| 8 | Cross-attention | Links decoder to encoder |
+| 9 | Output projection | Vocabulary logits |
 
-1. Input embeddings.
-2. Positional encoding.
-3. Scaled dot-product attention.
-4. Multi-head attention.
-5. Feed-forward networks.
-6. Residual connections and layer normalization.
-7. Encoder–decoder cross-attention.
-8. Output projection.
-
-Together, these components form the mathematical foundation of the encoder–decoder Transformer architecture explored in TransForge.
-
+Together, these components form the mathematical foundation of the encoder–decoder Transformer in **TransForge**.
 
 
 ## Technologies & Libraries
